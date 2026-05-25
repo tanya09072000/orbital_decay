@@ -17,6 +17,12 @@ function EO = element(Y1)
 
     % Орбитальная энергия и большая полуось
     energy = v^2 / 2 - mu / r;
+    if energy >= 0
+        warning('element: орбита параболическая или гиперболическая (energy=%.6g), SMA не определена.', energy);
+        a = Inf;
+        EO = a;
+        return;
+    end
     a = -mu / (2 * energy);
     
     % Результат

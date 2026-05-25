@@ -54,7 +54,11 @@ function [TEMP, AL10N, AMMW, RHO] = cira(HEGEO, ALSA, DESA, ALSO, DESO, RJDAYS, 
     TC(1) = TSUBX;
     TC(2) = GSUBX;
     TC(3) = (TINF - TSUBX) / PIOV2;
-    TC(4) = GSUBX / TC(3);
+    if abs(TC(3)) < 1e-6
+        TC(4) = 0.0;  % вырожденный случай TINF≈TSUBX: атан-ветвь температуры «плоская»
+    else
+        TC(4) = GSUBX / TC(3);
+    end
 
     % Заглушки на выходы (пока пустые)
     AL10N = zeros(6, 1);
@@ -62,8 +66,6 @@ function [TEMP, AL10N, AMMW, RHO] = cira(HEGEO, ALSA, DESA, ALSO, DESO, RJDAYS, 
     RHO = NaN;
 
     % Следующий шаг: расчёт плотности и температур (от 90 км)
-
-TC(4) = GSUBX / TC(3);
 
 % --- Расчёт плотности от 90 до 100 км ---
     Z1 = 90.0;
@@ -225,6 +227,11 @@ TC(4) = GSUBX / TC(3);
         AL10N(i) = ALN(i) / AL10;
     end
 
-    AMMW = SUMNM / SUMN;
+    if SUMN == 0
+        warning('cira: суммарная концентрация равна нулю (возможен андерфлоу exp). AMMW=NaN.');
+        AMMW = NaN;
+    else
+        AMMW = SUMNM / SUMN;
+    end
     RHO = SUMNM / AVOGAD;
     end

@@ -59,7 +59,12 @@ while current_time < duration_seconds
     rho = allRHO(date_idx);
 
     % Расчет орбитального периода
-    r_now = 1 / (2/norm(y_vec(1:3)) - norm(y_vec(4:6))^2 / mu);
+    denom = 2/norm(y_vec(1:3)) - norm(y_vec(4:6))^2 / mu;
+    if abs(denom) < 1e-12
+        warning('Знаменатель vis-viva близок к нулю — орбита параболическая или гиперболическая. Прерывание.');
+        break;
+    end
+    r_now = 1 / denom;
     T_orbit = 2 * pi * sqrt(r_now^3 / mu);
   
     % Интегрирование движения на один виток
@@ -81,7 +86,12 @@ while current_time < duration_seconds
     current_datetime = start_datetime + seconds(current_time);
 
     % Сохраняем высоту и время
-    a = 1 / (2/norm(y_vec(1:3)) - norm(y_vec(4:6))^2 / mu); % большая полуось, км
+    denom_a = 2/norm(y_vec(1:3)) - norm(y_vec(4:6))^2 / mu;
+    if abs(denom_a) < 1e-12
+        warning('Знаменатель vis-viva близок к нулю при сохранении SMA. Прерывание.');
+        break;
+    end
+    a = 1 / denom_a; % большая полуось, км
     semi_major_axis(end+1) = a;
     height(end+1) = norm(y_vec(1:3)) - Re; % высота в восходящем узле
     time(end+1) = current_datetime;
@@ -104,7 +114,7 @@ fprintf('Высота упала на %.6f км\n', dh);
 fprintf('Период расчёта: с %s по %s\n',datestr(time(1), 'yyyy-mm-dd HH:MM:SS'), datestr(time(end), 'yyyy-mm-dd HH:MM:SS'));
 fprintf('Начальная SMA %.6f км\n', semi_major_axis(1));
 fprintf ('Конечная SMA %.6f км\n', semi_major_axis(end));
-T = table(crossing_times(:), semi_major_axis(:), modRV(:), 'VariableNames', {'Дата', 'Большая полуось_км', 'Высота_км'});
+T = table(crossing_times(:), semi_major_axis(:), height(:), 'VariableNames', {'Дата', 'Большая полуось_км', 'Высота_км'});
 % disp(T)
 
 end
