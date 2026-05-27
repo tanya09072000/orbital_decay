@@ -1,9 +1,7 @@
 function altitude_VU()
 
 current_file = fileparts(mfilename('fullpath'));
-
-cx_path = fullfile(current_file, '..', 'calculation_Cx', 'matlab');
-
+cx_path = fullfile(current_file, 'calculation_Cx', 'matlab');
 addpath(cx_path);
 
 % Моделирование орбитального снижения КА.
@@ -22,7 +20,6 @@ function params = setup_params()
     params.m_dry         = 306.4;    % масса КА без топлива, кг
     params.m_fuel        = 3.6;      % начальная масса топлива, кг
     params.m_total       = 306.4 + 3.6;  % полная стартовая масса, кг
-   % params.Cx            = 3.56;     % коэффициент аэродинамического сопротивления
     params.Sm            = 2.25;     % площадь миделевого сечения, м²
     params.duration_days = 28.9;     % продолжительность расчёта, сут
     params.start_dt      = datetime(2025, 8, 31, 23, 18, 47);
@@ -38,6 +35,15 @@ function data = load_solar_data(filename)
 end
 
 % ================================================================
+function [rho_grid, Cx_grid] = compute_atm_grids(h_grid, date, data)
+    rho_grid = zeros(size(h_grid));
+    Cx_grid  = zeros(size(h_grid));
+    for i = 1:length(h_grid)
+        [Cx_grid(i), rho_grid(i), ~] = compute_cx(h_grid(i), 0, date, data);
+    end
+end
+
+% ================================================================
 function results = run_simulation(params, data)
     C  = orb_constants();
     mu = C.mu;
@@ -46,43 +52,32 @@ function results = run_simulation(params, data)
     r0    = norm(y_vec(1:3));
 
     duration_s = params.duration_days * 86400;
-    n_est      = ceil(duration_s / 5700) + 20;   % оценка числа витков + запас
+    a0         = params.input_data(1);
+    T0         = 2*pi * sqrt(a0^3 / mu);
+    n_est      = ceil(duration_s / T0) + 20;
 
     sma_arr    = zeros(1, n_est);
     height_arr = zeros(1, n_est);
     time_arr   = NaT(1, n_est);
 
-    n            = 1;
-    current_time = 0;
-    current_dt   = params.start_dt;
-    sma_arr(n)   = params.input_data(1);
+    n             = 1;
+    current_time  = 0;
+    current_dt    = params.start_dt;
+    sma_arr(n)    = params.input_data(1);
     height_arr(n) = r0 - C.Re;
-    time_arr(n)  = current_dt;
+    time_arr(n)   = current_dt;
 
-    % Предвычисление атмосферы
-
-    h_grid = 100:1:1000;   % высоты, км
-
-    rho_grid = zeros(size(h_grid));
-    Cx_grid = zeros(size(h_grid));
-
-    for i = 1:length(h_grid)
-
-        [~, ~, rho_grid(i)] = cira_main( ...
-        h_grid(i), ...
-        dateshift(params.start_dt, 'start', 'day'), ...
-        data);
-
-        [Cx_grid(i), ~] = compute_cx( ...
-        h_grid(i), ...
-        0, ...
-        dateshift(params.start_dt, 'start', 'day'), ...
-        data);
-
-    end
-
+    h_grid        = 100:1:1000;
+    last_atm_date = dateshift(params.start_dt, 'start', 'day');
+    [rho_grid, Cx_grid] = compute_atm_grids(h_grid, last_atm_date, data);
 
     while current_time < duration_s
+
+        today = dateshift(current_dt, 'start', 'day');
+        if today ~= last_atm_date
+            [rho_grid, Cx_grid] = compute_atm_grids(h_grid, today, data);
+            last_atm_date = today;
+        end
 
         r = norm(y_vec(1:3));
         v = norm(y_vec(4:6));
@@ -95,13 +90,10 @@ function results = run_simulation(params, data)
         r_now   = 1 / denom;
         T_orbit = 2*pi * sqrt(r_now^3 / mu);
 
-        % Плотность для текущей высоты и текущей даты
-        %rho = cira_main(r - C.Re, dateshift(current_dt, 'start', 'day'), data);
-
         orbit_opts = odeset('RelTol', 1e-10, 'AbsTol', 1e-12, ...
                             'MaxStep', T_orbit/1000, 'Events', @ascendingNodeEvent);
         [~, ~, te, ye, ~] = ode89(...
-            @(t, y) two_body(t, y, params.Sm, params.m_total, h_grid, rho_grid, Cx_grid), ...
+            @(t, y) two_body(t, y, C, params.Sm, params.m_total, h_grid, rho_grid, Cx_grid), ...
             [0, T_orbit], y_vec, orbit_opts);
 
         if isempty(te)
@@ -150,4 +142,5 @@ function print_summary(results)
 
     T = table(results.time(:), results.sma(:), results.height(:), ...
         'VariableNames', {'Дата', 'Большая_полуось_км', 'Высота_км'});
+    disp(T);
 end

@@ -1,12 +1,13 @@
-function dy_dt = two_body(t, y, Sm, m_total, h_grid, rho_grid, Cx_grid)
+function dy_dt = two_body(t, y, C, Sm, m_total, h_grid, rho_grid, Cx_grid)
 % Правая часть уравнения движения: гравитация + J2 + аэродинамическое торможение.
-% Вход:  y       — [x, y, z, Vx, Vy, Vz], км и км/с
-%        Cx      — коэффициент аэродинамического сопротивления
-%        Sm      — площадь миделевого сечения, м²
-%        m_total — масса КА, кг
-%        rho     — плотность атмосферы, кг/м³
+% Вход:  y        — [x, y, z, Vx, Vy, Vz], км и км/с
+%        C        — структура физических констант (orb_constants)
+%        Sm       — площадь миделевого сечения, м²
+%        m_total  — масса КА, кг
+%        h_grid   — сетка высот для интерполяции, км
+%        rho_grid — плотность атмосферы на сетке h_grid, кг/м³
+%        Cx_grid  — коэффициент сопротивления на сетке h_grid
 
-    C     = orb_constants();
     mu    = C.mu;
     J2    = C.J2;
     Re    = C.Re;
@@ -27,10 +28,9 @@ function dy_dt = two_body(t, y, Sm, m_total, h_grid, rho_grid, Cx_grid)
 
     a_grav = (-mu / r_norm^3) * r_vec;
 
-    h_km = r_norm - Re;
-    rho = interp1(h_grid, rho_grid, h_km, 'spline');
-    Cx_val = interp1(h_grid, Cx_grid, h_km, 'linear');
-    %[~, rho] = Cx(h_km, 0, dateshift(sim_time, 'start', 'day'));
+    h_km   = r_norm - Re;
+    rho    = interp1(h_grid, rho_grid, h_km, 'linear', 0);
+    Cx_val = interp1(h_grid, Cx_grid,  h_km, 'linear', Cx_grid(end));
 
     a_drag = (-0.5 * Cx_val * Sm * rho * v_rel_norm / m_total / 1000) * v_rel;
 
