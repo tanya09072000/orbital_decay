@@ -1,6 +1,10 @@
 function altitude_VU()
 
-addpath('D:\Projects_matlab\calculation_Cx\matlab');
+current_file = fileparts(mfilename('fullpath'));
+
+cx_path = fullfile(current_file, '..', 'calculation_Cx', 'matlab');
+
+addpath(cx_path);
 
 % Моделирование орбитального снижения КА.
 % На каждом витке: интегрирование до восходящего узла, обновление SMA и высоты.
