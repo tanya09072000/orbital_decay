@@ -1,4 +1,4 @@
-function dy_dt = two_body(~, y, Cx, Sm, m_total, rho)
+function dy_dt = two_body(t, y, Sm, m_total, h_grid, rho_grid, Cx_grid)
 % Правая часть уравнения движения: гравитация + J2 + аэродинамическое торможение.
 % Вход:  y       — [x, y, z, Vx, Vy, Vz], км и км/с
 %        Cx      — коэффициент аэродинамического сопротивления
@@ -27,7 +27,12 @@ function dy_dt = two_body(~, y, Cx, Sm, m_total, rho)
 
     a_grav = (-mu / r_norm^3) * r_vec;
 
-    a_drag = (-0.5 * Cx * Sm * rho * v_rel_norm / m_total / 1000) * v_rel;
+    h_km = r_norm - Re;
+    rho = interp1(h_grid, rho_grid, h_km, 'spline');
+    Cx_val = interp1(h_grid, Cx_grid, h_km, 'linear');
+    %[~, rho] = Cx(h_km, 0, dateshift(sim_time, 'start', 'day'));
+
+    a_drag = (-0.5 * Cx_val * Sm * rho * v_rel_norm / m_total / 1000) * v_rel;
 
     a_J2 = ((-3 * J2 * mu * Re^2) / (2 * r_norm^5)) * ...
            [ r_vec(1) * (1 - 5*zr_ratio);

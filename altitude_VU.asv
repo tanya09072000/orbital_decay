@@ -18,7 +18,7 @@ function params = setup_params()
     params.m_dry         = 306.4;    % масса КА без топлива, кг
     params.m_fuel        = 3.6;      % начальная масса топлива, кг
     params.m_total       = 306.4 + 3.6;  % полная стартовая масса, кг
-   % params.Cx            = 3.56;     % коэффициент аэродинамического сопротивления
+    params.Cx            = 3.56;     % коэффициент аэродинамического сопротивления
     params.Sm            = 2.25;     % площадь миделевого сечения, м²
     params.duration_days = 28.9;     % продолжительность расчёта, сут
     params.start_dt      = datetime(2025, 8, 31, 23, 18, 47);
@@ -72,8 +72,7 @@ function results = run_simulation(params, data)
         [Cx_grid(i), ~] = compute_cx( ...
         h_grid(i), ...
         0, ...
-        dateshift(params.start_dt, 'start', 'day'), ...
-        data);
+        dateshift(params.start_dt, 'start', 'day'));
 
     end
 
@@ -97,7 +96,7 @@ function results = run_simulation(params, data)
         orbit_opts = odeset('RelTol', 1e-10, 'AbsTol', 1e-12, ...
                             'MaxStep', T_orbit/1000, 'Events', @ascendingNodeEvent);
         [~, ~, te, ye, ~] = ode89(...
-            @(t, y) two_body(t, y, params.Sm, params.m_total, h_grid, rho_grid, Cx_grid), ...
+            @(t, y) two_body(t, y, params.Cx, params.Sm, params.m_total, h_grid, rho_grid, Cx_grid), ...
             [0, T_orbit], y_vec, orbit_opts);
 
         if isempty(te)
