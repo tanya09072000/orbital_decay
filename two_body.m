@@ -1,38 +1,38 @@
-function dy_dt = two_body(t, y, Cx, Sm, m_total, rho)
-% решение задачи двух тел, вход- y [x, y, z, Vx, Vy, Vz] - вектор состояния на каждом шаге
+function dy_dt = two_body(~, y, Cx, Sm, m_total, rho)
+% Правая часть уравнения движения: гравитация + J2 + аэродинамическое торможение.
+% Вход:  y       — [x, y, z, Vx, Vy, Vz], км и км/с
+%        Cx      — коэффициент аэродинамического сопротивления
+%        Sm      — площадь миделевого сечения, м²
+%        m_total — масса КА, кг
+%        rho     — плотность атмосферы, кг/м³
 
-mu = double(398600.4415);  % гравитационный параметр Земли (км^3/с^2)
-omega_earth = 7.2921150e-5; % рад/с
+    C     = orb_constants();
+    mu    = C.mu;
+    J2    = C.J2;
+    Re    = C.Re;
+    omega = C.omega;
 
-J2 = 1.08262668e-3; % нецентральность поля Земли с J₂-возмущения (сплюснутость планеты). Это даёт долговременную прецессию узла и аргумента перигея
-Re = 6378.137; % экваториальный радиус Земли (км)
+    r_vec  = y(1:3);
+    v_vec  = y(4:6);
+    r_norm = norm(r_vec);
 
-r = y(1:3); % извлечение вектора положения
-v = y(4:6); % извлечение вектора скорости
+    r_si = r_vec * 1000;   % позиция в м
+    v_si = v_vec * 1000;   % скорость в м/с
 
-r_norm = norm(r); % расстояние от центра планета до КА
-r_si = r * 1000; % в м/с
-v_si = v * 1000; % в м/с
+    zr_ratio = (r_vec(3) / r_norm)^2;
 
-z = r(3);
-zr_ratio = (z/r_norm)^2;
+    v_atm      = cross([0; 0; omega], r_si);   % скорость атмосферы, м/с
+    v_rel      = v_si - v_atm;                 % относительная скорость, м/с
+    v_rel_norm = norm(v_rel);
 
-omega_vec = [0; 0; omega_earth]; % вектор вращения Земли
-v_atm = cross(omega_vec, r_si); % скорость атмосферы в точке
+    a_grav = (-mu / r_norm^3) * r_vec;
 
-v_rel = v_si - v_atm; % относительная скорость КА относительно атмосферы
-v_rel_norm = norm(v_rel); % модуль относительной скорости
+    a_drag = (-0.5 * Cx * Sm * rho * v_rel_norm / m_total / 1000) * v_rel;
 
-a_grav = (-mu*r)/(r_norm^3); % второй закон Ньютона
-a_drag = -0.5 * Cx * Sm * rho * v_rel_norm * v_rel /  m_total / 1000; % в км/с^2
-a_J2 = ((-3*J2*mu*Re^2)/(2*r_norm^5))*...
-        [ r(1)*(1 - 5*zr_ratio);
-         r(2)*(1 - 5*zr_ratio);
-         r(3)*(3 - 5*zr_ratio) ];
+    a_J2 = ((-3 * J2 * mu * Re^2) / (2 * r_norm^5)) * ...
+           [ r_vec(1) * (1 - 5*zr_ratio);
+             r_vec(2) * (1 - 5*zr_ratio);
+             r_vec(3) * (3 - 5*zr_ratio) ];
 
-a = a_grav + a_drag + a_J2;
-
-dy_dt = [v;a]; % производная состояния
-
-%fprintf("t=%.2f | a_drag = [%g %g %g] км/с^2 | norm=%.2e\n", t, a_drag(1), a_drag(2), a_drag(3), norm(a_drag));
+    dy_dt = [v_vec; a_grav + a_drag + a_J2];
 end
