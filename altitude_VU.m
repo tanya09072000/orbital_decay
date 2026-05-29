@@ -78,14 +78,8 @@ function results = run_simulation(params, data)
         T_orbit = 2*pi * sqrt(r_now^3 / mu);
         day_now = dateshift(current_dt, 'start', 'day');
 
-        % --- Географическая долгота КА: ЭКИ → вращающаяся Земля ---
-        RJDAYS_now = juliandate(current_dt);
-        GMST_now   = deg2rad(mod(280.46061837 + 360.98564736629 * (RJDAYS_now - 2451545.0), 360));
-        lon_eci    = atan2(y_vec(2), y_vec(1));
-        lon_geo    = mod(lon_eci - GMST_now, 2*pi);
-
         % --- Сетка высот ±60 км вокруг текущей орбиты, 20 точек ---
-        h_lo   = max(90,  alt_now - 60);
+        h_lo   = max(80,  alt_now - 60);
         h_hi   = min(700, alt_now + 60);
         h_grid = linspace(h_lo, h_hi, 20);
 
@@ -93,7 +87,7 @@ function results = run_simulation(params, data)
         cx_grid  = zeros(1, 20);
 
         for k = 1:20
-            [TEMP_k, AMMW_k, rho_grid(k)] = cira_main(h_grid(k), day_now, data, lon_geo);
+            [TEMP_k, AMMW_k, rho_grid(k)] = cira_main(h_grid(k), day_now, data);
 
          % Cx из тех же TEMP и AMMW — без повторного вызова cira_main
             h_k  = h_grid(k);
