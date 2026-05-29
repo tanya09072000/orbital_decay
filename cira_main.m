@@ -1,42 +1,45 @@
-function [TEMP, AMMW, RHO] = cira_main(alt_km, date, data)
-% Обёртка над моделью CIRA-86: температура, молярная масса и плотность атмосферы.
-% Вход:  alt_km — геоцентрическая высота, км (>= 90)
-%        date   — datetime или строка 'yyyy-MM-dd' с датой расчёта
-%        data   — таблица солнечных данных (из Koeff_future.csv)
-% Выход: TEMP   — [T_inf; T_local], К
-%        AMMW   — средняя молярная масса, г/моль
-%        RHO    — плотность, кг/м³
+function [TEMP, AMMW, RHO,f107,f81,Kp] = cira_main(height_km, date_str)
 
-    if isa(date, 'datetime')
-        myDate = dateshift(date, 'start', 'day');
-    elseif ischar(date) || isstring(date)
-        myDate = datetime(date, 'InputFormat', 'yyyy-MM-dd');
-    else
-        error('cira_main: аргумент date должен быть datetime или строкой.');
-    end
+        % Загрузка данных
+        koeffPath = fullfile(fileparts(mfilename('fullpath')), '..', 'data', 'Koeff.csv');
+        opts = detectImportOptions(koeffPath, 'Encoding', 'UTF-8');
+        opts.VariableNamingRule = 'preserve';
+        opts = setvaropts(opts, 'DATE', 'InputFormat', 'yyyy-MM-dd');
+        data = readtable(koeffPath, opts);
 
-    idx = data.DATE == myDate;
-    if ~any(idx)
-        error('cira_main: дата %s не найдена в таблице солнечных данных.', ...
-              string(myDate, 'yyyy-MM-dd'));
-    end
+        try
+            myDate = datetime(date_str, 'InputFormat', 'yyyy-MM-dd');
+        catch
+            error('Неверный формат даты. Введите, например: 2020-01-04');
+        end
 
-    f107 = data.("F10.7_OBS")(idx);
-    f81  = data.("F10.7_OBS_LAST81")(idx);
-    % KP_SUM — сумма 8 трёхчасовых значений Kp (в единицах 0.1 Kp);
-    % делим на 80 для перевода в средний Kp стандартной шкалы (0-9)
-    Kp   = data.("KP_SUM")(idx) / 80;
+        % --- Поиск F10.7 по дате ---
+        idx = data.DATE == myDate;
+        if ~any(idx)
+            error('Дата не найдена в таблице солнечных данных.');
+        end
 
-    GEO = [f107; f81; Kp];
+        f107 = data.("F10.7_OBS")(idx);  % колонка с F10.7 по наблюдениям
+        f81 = data.("F10.7_OBS_LAST81")(idx); % колонка с F10.7 по наблюдениям 81 дня
+        Kp = data.("KP_SUM")(idx);
+        Kp = Kp/80;
+        GEO = [f107; f81; Kp];  % GEO(3) — геомагнитный индекс, по умолчанию 1.0
+        %GEO = [150; 150; 3];
+        %disp (GEO);
+        ALSA = 0.0;
+        DESA = 0.0;
+        ALSO = 0.0;
+        DESO = pi/2;
+        RJDAYS = juliandate(myDate);
+        
 
-    % Приближённое склонение Солнца (точность ±1°) для учёта сезонной вариации
-    doy  = day(myDate, 'dayofyear');
-    DESA = deg2rad(23.45 * sin(2*pi * (284 + doy) / 365));
+        TEMP = zeros(2, 1);
+        AL10N = zeros(6, 1);
 
-    ALSA  = 0.0;    % местное солнечное время не задано — усреднение по долготе
-    ALSO  = 0.0;
-    DESO  = pi / 2;
-    jd    = juliandate(myDate);
+        [TEMP, AL10N, AMMW, RHO] = cira(height_km, ALSA, DESA, ALSO, DESO, RJDAYS, GEO);
 
-    [TEMP, ~, AMMW, RHO] = cira(alt_km, ALSA, DESA, ALSO, DESO, jd, GEO);
+        AMMW = AMMW;
+        %fprintf('Температура экзосферы и локальная температура T, K: %.2f %.2f\n', TEMP(1), TEMP(2));
+        %fprintf('Молекулярная масса: %.6f\n', AMMW);
+        %fprintf('Плотность, кг/м^3: %.6e\n', RHO);
 end
