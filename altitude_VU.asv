@@ -18,7 +18,7 @@ function params = setup_params()
     params.Cx            = 3.56;     % коэффициент аэродинамического сопротивления
     params.Sm            = 2.25;     % площадь миделевого сечения, м²
     params.duration_days = 28.9;     % продолжительность расчёта, сут
-    params.start_dt      = datetime(2024, 8, 31, 23, 18, 47);
+    params.start_dt      = datetime(2025, 8, 31, 23, 18, 47);
     params.data_file     = 'Koeff_future.csv';
 end
 
@@ -36,8 +36,10 @@ function results = run_simulation(params, data)
     mu = C.mu;
 
     % Физические константы для расчёта Cx
+    mu = 398600.4415; % Гравитационный параметр Земли, км³/с²
+    Re = 6371; % радиус Земли, км
     aem = 1.6605390666e-27; % атомная единица массы, кг
-    k_b = 1.380649e-23; % постоянная Больцмана, Дж/К
+    k = 1.380649e-23; % постоянная Больцмана, Дж/К
 
     y_vec = vector_sostoyania(params.input_data);
     r0    = norm(y_vec(1:3));
@@ -87,11 +89,11 @@ function results = run_simulation(params, data)
         cx_grid  = zeros(1, 20);
 
         for k = 1:20
-            [TEMP_k, AMMW_k, rho_grid(k)] = cira_main(h_grid(k), day_now, data);
+            [TEMP_k, AMMW_k, rho_grid(k)] = cira_main(h_grid(k), day_now, data)
 
          % Cx из тех же TEMP и AMMW — без повторного вызова cira_main
             h_k  = h_grid(k);
-            V_k  = sqrt(C.mu / (C.Re + h_k)) * 1000;
+            V_k  = sqrt(mu_orb / (Re_cx + h_k)) * 1000;
             m_k  = AMMW_k * aem;
             Tinf = TEMP_k(1);
             Tw   = 0.000201*h_k^3 - 0.1164*h_k^2 + 24.217*h_k - 1525;
@@ -106,11 +108,10 @@ function results = run_simulation(params, data)
         rho_interp = griddedInterpolant(h_grid, log(rho_grid), 'pchip', 'nearest');
         cx_interp  = griddedInterpolant(h_grid, cx_grid,       'pchip', 'nearest');
 
-        % --- Интегрирование витка ---
         orbit_opts = odeset('RelTol', 1e-10, 'AbsTol', 1e-12, ...
                             'MaxStep', T_orbit/1000, 'Events', @ascendingNodeEvent);
         [~, ~, te, ye, ~] = ode89(...
-            @(t, y) two_body(t, y, cx_interp, params.Sm, params.m_total, rho_interp), ...
+            @(t, y) two_body(t, y, params.Cx, params.Sm, params.m_total, rho), ...
             [0, T_orbit], y_vec, orbit_opts);
 
         if isempty(te)

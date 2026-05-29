@@ -1,10 +1,10 @@
-function dy_dt = two_body(~, y, Cx, Sm, m_total, rho)
+function dy_dt = two_body(~, y, cx_interp, Sm, m_total, rho_interp)
 % Правая часть уравнения движения: гравитация + J2 + аэродинамическое торможение.
 % Вход:  y       — [x, y, z, Vx, Vy, Vz], км и км/с
-%        Cx      — коэффициент аэродинамического сопротивления
+%        cx_interp  — интерполянт Cx(высота_км)
 %        Sm      — площадь миделевого сечения, м²
 %        m_total — масса КА, кг
-%        rho     — плотность атмосферы, кг/м³
+%        rho_interp — интерполянт log(rho)(высота_км), кг/м³
 
     C     = orb_constants();
     mu    = C.mu;
@@ -15,6 +15,11 @@ function dy_dt = two_body(~, y, Cx, Sm, m_total, rho)
     r_vec  = y(1:3);
     v_vec  = y(4:6);
     r_norm = norm(r_vec);
+
+     % Мгновенные значения плотности и Cx по текущей высоте
+    alt_km = r_norm - Re;
+    rho = exp(rho_interp(alt_km));   % обратно из log-пространства
+    Cx  = cx_interp(alt_km);
 
     r_si = r_vec * 1000;   % позиция в м
     v_si = v_vec * 1000;   % скорость в м/с

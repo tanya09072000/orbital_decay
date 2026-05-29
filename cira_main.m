@@ -1,24 +1,14 @@
-function [TEMP, AMMW, RHO,f107,f81,Kp] = cira_main(HEGEO, userDateStr)
+function [TEMP, AMMW, RHO,f107,f81,Kp] = cira_main(HEGEO, userDate, data)
 
-        % Загрузка данных
-        koeffPath = fullfile(fileparts(mfilename('fullpath')), '..', 'data', 'Koeff.csv');
-        opts = detectImportOptions(koeffPath, 'Encoding', 'UTF-8');
-        opts.VariableNamingRule = 'preserve';
-        opts = setvaropts(opts, 'DATE', 'InputFormat', 'yyyy-MM-dd');
-        data = readtable(koeffPath, opts);
-
-        try
-            myDate = datetime(userDateStr, 'InputFormat', 'yyyy-MM-dd');
-        catch
-            error('Неверный формат даты. Введите, например: 2020-01-04');
-        end
-
-        % --- Поиск F10.7 по дате ---
-        idx = data.DATE == myDate;
-        if ~any(idx)
-            error('Дата не найдена в таблице солнечных данных.');
-        end
-
+        % Поиск F10.7 по дате (data уже загружена)
+        d = dateshift(userDate, 'start', 'day');
+        idx = year(data.DATE)  == year(d)  & ...
+        month(data.DATE) == month(d) & ...
+        day(data.DATE)   == day(d);
+            if ~any(idx)
+                error('Дата не найдена в таблице солнечных данных: %s', string(userDate));
+            end
+    
         f107 = data.("F10.7_OBS")(idx);  % колонка с F10.7 по наблюдениям
         f81 = data.("F10.7_OBS_LAST81")(idx); % колонка с F10.7 по наблюдениям 81 дня
         Kp = data.("KP_SUM")(idx);
@@ -26,11 +16,14 @@ function [TEMP, AMMW, RHO,f107,f81,Kp] = cira_main(HEGEO, userDateStr)
         GEO = [f107; f81; Kp];  % GEO(3) — геомагнитный индекс, по умолчанию 1.0
         %GEO = [150; 150; 3];
         %disp (GEO);
+        
+        day_of_year = day(userDate, 'dayofyear');
+        DESA = deg2rad(23.44 * sin(2*pi * (day_of_year - 80) / 365));  % солнечное склонение
+        
         ALSA = 0.0;
-        DESA = 0.0;
         ALSO = 0.0;
         DESO = pi/2;
-        RJDAYS = juliandate(myDate);
+        RJDAYS = juliandate(userDate);
         
 
         TEMP = zeros(2, 1);
